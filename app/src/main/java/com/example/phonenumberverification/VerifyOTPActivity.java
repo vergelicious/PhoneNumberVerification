@@ -1,16 +1,33 @@
 package com.example.phonenumberverification;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.view.View;
+import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
+
+import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.Task;
+import com.google.firebase.FirebaseException;
+import com.google.firebase.auth.AuthResult;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.PhoneAuthCredential;
+import com.google.firebase.auth.PhoneAuthProvider;
+
+import java.util.concurrent.TimeUnit;
 
 public class VerifyOTPActivity extends AppCompatActivity {
 
     private EditText inputCode1, inputCode2, inputCode3, inputCode4, inputCode5, inputCode6;
+    private String verificationID;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -30,6 +47,79 @@ public class VerifyOTPActivity extends AppCompatActivity {
         inputCode6 = findViewById(R.id.inputCode6);
 
         setupOTPInputs();
+
+        final ProgressBar progressBar2 = findViewById(R.id.progressBar2);
+        final Button buttonConfirm = findViewById(R.id.btnVerify);
+
+        verificationID = getIntent().getStringExtra("verificationID");
+
+        buttonConfirm.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if(inputCode1.getText().toString().trim().isEmpty()
+                || inputCode2.getText().toString().trim().isEmpty()
+                || inputCode3.getText().toString().trim().isEmpty()
+                || inputCode4.getText().toString().trim().isEmpty()
+                || inputCode5.getText().toString().trim().isEmpty()
+                || inputCode6.getText().toString().trim().isEmpty()) {
+                    Toast.makeText(VerifyOTPActivity.this, "Please enter a valid code.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                String code = inputCode1.getText().toString() +
+                        inputCode2.getText().toString() +
+                        inputCode3.getText().toString() +
+                        inputCode4.getText().toString() +
+                        inputCode5.getText().toString() +
+                        inputCode6.getText().toString();
+                if(verificationID != null) {
+                    progressBar2.setVisibility(View.VISIBLE);
+                    buttonConfirm.setVisibility(View.INVISIBLE);
+                    PhoneAuthCredential phoneAuthCredential = PhoneAuthProvider.getCredential(verificationID, code);
+                    FirebaseAuth.getInstance().signInWithCredential(phoneAuthCredential)
+                            .addOnCompleteListener(new OnCompleteListener<AuthResult>() {
+                                @Override
+                                public void onComplete(@NonNull Task<AuthResult> task) {
+                                    progressBar2.setVisibility(View.GONE);
+                                    buttonConfirm.setVisibility(View.VISIBLE);
+                                    if(task.isSuccessful()) {
+                                        Intent intent = new Intent(getApplicationContext(), MainActivity.class);
+                                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                                        startActivity(intent);
+                                    }else {
+                                        Toast.makeText(VerifyOTPActivity.this, "Verification code is invalid.", Toast.LENGTH_SHORT).show();
+                                    }
+                                }
+                            });
+                }
+            }
+        });
+
+        findViewById(R.id.txtResendOTP).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                PhoneAuthProvider.getInstance().verifyPhoneNumber(
+                        "+63" + getIntent().getStringExtra("number"),
+                        63,
+                        TimeUnit.SECONDS,
+                        VerifyOTPActivity.this,
+                        new PhoneAuthProvider.OnVerificationStateChangedCallbacks(){
+                            @Override
+                            public void onVerificationCompleted(@NonNull PhoneAuthCredential phoneAuthCredential) {
+                            }
+                            @Override
+                            public void onVerificationFailed(@NonNull FirebaseException e) {
+                                Toast.makeText(VerifyOTPActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
+                            }
+
+                            @Override
+                            public void onCodeSent(@NonNull String newVerificationID, @NonNull PhoneAuthProvider.ForceResendingToken forceResendingToken) {
+                                verificationID = newVerificationID;
+                                Toast.makeText(VerifyOTPActivity.this, "OTP Sent!", Toast.LENGTH_SHORT).show();
+                            }
+                        }
+                );
+            }
+        });
     }
     private void setupOTPInputs() {
         inputCode1.addTextChangedListener(new TextWatcher() {
